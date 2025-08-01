@@ -45,3 +45,212 @@
     <div class="container main-container mx-auto p-4 md:p-8">
         
         <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Code Generation Tool</h1>
+            <button id="download-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                Download Results
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8">
+
+            <div class="mb-8">
+                <h2 class="section-header">Input Service Names</h2>
+                <p class="text-sm text-gray-500 mb-4">Paste your list of service names below, one per line. The tool will generate a unique code for each item that is between 2 and 8 characters long.</p>
+                <textarea id="service-names" rows="12" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Paste list here..."></textarea>
+            </div>
+
+            <div class="flex items-center gap-4 mb-8">
+                <button id="generate-btn" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-md hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition w-36">
+                    Generate Codes
+                </button>
+                <button id="clear-btn" class="text-blue-600 hover:underline text-sm font-medium">
+                    Clear All
+                </button>
+            </div>
+
+            <div id="results-container">
+                <h2 class="section-header">Results</h2>
+                <p id="line-count" class="text-gray-600 mb-4 h-6 text-sm"></p> <div class="rounded-lg overflow-hidden border border-gray-200">
+                    <table class="min-w-full bg-white">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="w-3/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Name</th>
+                                <th class="w-2/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Generated Code</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-table" class="divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <footer class="text-center mt-8">
+            <p class="text-xs text-gray-400">Internal Company Tool v2.2</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element Selection ---
+            const generateBtn = document.getElementById('generate-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const serviceNamesInput = document.getElementById('service-names');
+            const tableBody = document.getElementById('results-table');
+            const lineCountEl = document.getElementById('line-count');
+            
+            // --- State Management ---
+            let tableData = [];
+            const placeholderRowHTML = `<tr><td class="px-6 py-4 text-sm text-gray-400" colspan="2">Results will appear here once codes are generated.</td></tr>`;
+
+            // --- Initial State ---
+            tableBody.innerHTML = placeholderRowHTML;
+
+            // --- Event Listeners ---
+            generateBtn.addEventListener('click', handleGenerateCodes);
+            clearBtn.addEventListener('click', clearAll);
+            downloadBtn.addEventListener('click', downloadCSV);
+            tableBody.addEventListener('click', handleCopyClick);
+
+            // --- Core Functions ---
+            function handleGenerateCodes() {
+                generateBtn.disabled = true;
+                generateBtn.textContent = 'Generating...';
+
+                setTimeout(() => {
+                    generateCodes();
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = 'Generate Codes';
+                }, 50); 
+            }
+
+            function generateCodes() {
+                const textInput = serviceNamesInput.value;
+                const lines = textInput.split('\n').filter(line => line.trim() !== '');
+                
+                tableData = [];
+                const generatedCodes = new Map();
+
+                if (lines.length === 0) {
+                    lineCountEl.textContent = 'No lines detected. Please paste your data.';
+                    tableBody.innerHTML = placeholderRowHTML;
+                    downloadBtn.disabled = true;
+                    return;
+                }
+                
+                let tableHTML = '';
+
+                lines.forEach(line => {
+                    const serviceName = line.trim();
+                    let code = createAcronym(serviceName);
+                    const originalCode = code;
+
+                    let count = 1;
+                    while (generatedCodes.has(code)) {
+                        count++;
+                        const availableLength = 8 - String(count).length;
+                        code = originalCode.substring(0, availableLength) + count;
+                    }
+                    generatedCodes.set(code, serviceName);
+
+                    tableData.push({ service: serviceName, code: code });
+                    
+                    tableHTML += `
+                        <tr class="group hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-pre-wrap text-sm text-gray-700">${serviceName}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                                <div class="flex items-center justify-between">
+                                    <span class="code-value">${code}</span>
+                                    <button class="copy-btn" title="Copy code">Copy</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tableBody.innerHTML = tableHTML;
+                lineCountEl.textContent = `Successfully processed ${lines.length} lines.`;
+                downloadBtn.disabled = false;
+            }
+
+            function createAcronym(text) {
+                const cleanedText = text.trim().replace(/[^a-zA-Z0-9\s]/g, '');
+                if (!cleanedText) return 'CODE';
+
+                const words = cleanedText.split(/\s+/).filter(w => w);
+                let acronym = '';
+
+                words.forEach(word => {
+                    acronym += !isNaN(word) ? word : word[0].toUpperCase();
+                });
+                
+                if (acronym.length < 2) {
+                    const cleanNoSpaces = cleanedText.replace(/\s/g, '');
+                    acronym = (cleanNoSpaces.length >= 2)
+                        ? cleanNoSpaces.substring(0, 2).toUpperCase()
+                        : (cleanNoSpaces.toUpperCase() + "XX").substring(0, 2);
+                }
+                
+                return acronym.substring(0, 8);
+            }
+            
+            function clearAll() {
+                serviceNamesInput.value = '';
+                tableBody.innerHTML = placeholderRowHTML;
+                lineCountEl.textContent = '';
+                downloadBtn.disabled = true;
+                tableData = [];
+            }
+            
+            function handleCopyClick(event) {
+                const target = event.target;
+                if (target.classList.contains('copy-btn')) {
+                    const codeToCopy = target.parentElement.querySelector('.code-value').textContent;
+                    navigator.clipboard.writeText(codeToCopy).then(() => {
+                        target.textContent = 'Copied!';
+                        target.classList.add('copied');
+                        setTimeout(() => {
+                            target.textContent = 'Copy';
+                            target.classList.remove('copied');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Failed to copy: ', err);
+                        target.textContent = 'Error';
+                    });
+                }
+            }
+
+            function downloadCSV() {
+                if (tableData.length === 0) {
+                    lineCountEl.textContent = "Cannot download. Please generate codes first.";
+                    lineCountEl.classList.add('text-red-500', 'font-semibold');
+                    setTimeout(() => {
+                        lineCountEl.textContent = "";
+                        lineCountEl.classList.remove('text-red-500', 'font-semibold');
+                    }, 3000);
+                    return;
+                }
+
+                let csvContent = "Service Name,Code\r\n";
+                tableData.forEach(row => {
+                    const service = `"${row.service.replace(/"/g, '""')}"`;
+                    const code = `"${row.code}"`;
+                    csvContent += [service, code].join(',') + "\r\n";
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "service_codes.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        });
+    </script>
+</body>
+</html>
